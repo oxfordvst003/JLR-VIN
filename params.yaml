@@ -1,0 +1,125 @@
+# MLOps Pipeline Parameters
+# =========================
+# Central parameter file for reproducible experiments
+
+# Data Configuration
+data:
+  train_path: Data/train
+  val_path: Data/val
+  test_path: Data/test
+  split_ratio: "60:20:20"
+  seed: 42
+  num_classes: 33
+  imgsz: 1024
+
+# Training Configuration
+train:
+  model: yolov8s.pt
+  epochs: 50
+  batch: 16
+  imgsz: 1024
+  optimizer: AdamW
+  lr0: 0.001
+  lrf: 0.01
+  momentum: 0.937
+  weight_decay: 0.0005
+  warmup_epochs: 3.0
+  warmup_momentum: 0.8
+  warmup_bias_lr: 0.1
+  seed: 12345
+  device: "0"
+  workers: 8
+  patience: 50
+  save_period: 10
+  
+  # Augmentation
+  augment: true
+  hsv_h: 0.015
+  hsv_s: 0.7
+  hsv_v: 0.4
+  degrees: 0.0
+  translate: 0.1
+  scale: 0.5
+  shear: 0.0
+  perspective: 0.0
+  flipud: 0.0
+  fliplr: 0.5
+  mosaic: 1.0
+  mixup: 0.0
+
+# Evaluation Configuration
+evaluate:
+  conf_threshold: 0.25
+  iou_threshold: 0.5
+  max_det: 300
+  split: test
+
+# Optuna Hyperparameter Search
+optuna:
+  enabled: false
+  n_trials: 15
+  study_name: vin_yolo_hpo
+  
+  # Search space
+  search_space:
+    lr0:
+      type: loguniform
+      low: 0.0001
+      high: 0.01
+    momentum:
+      type: uniform
+      low: 0.85
+      high: 0.98
+    weight_decay:
+      type: loguniform
+      low: 0.0001
+      high: 0.01
+    warmup_epochs:
+      type: int
+      low: 1
+      high: 5
+    hsv_h:
+      type: uniform
+      low: 0.0
+      high: 0.1
+    hsv_s:
+      type: uniform
+      low: 0.0
+      high: 0.9
+    scale:
+      type: uniform
+      low: 0.0
+      high: 0.9
+
+# MLOps Configuration
+mlops:
+  # DagsHub
+  dagshub:
+    owner: your-username
+    repo_name: JLR_VIN_2549
+  
+  # MLflow
+  mlflow:
+    experiment_name: vin_character_detection
+    registered_model_name: vin_yolov8s
+  
+  # Observability
+  observability:
+    log_level: INFO
+    metrics_interval: 10
+    resource_monitoring: true
+  
+  # Governance
+  governance:
+    require_approval: false  # Set to true in production
+    min_map50: 0.85
+    min_precision: 0.80
+    min_recall: 0.80
+
+# Export Configuration
+export:
+  format: onnx
+  opset: 12
+  simplify: true
+  dynamic: false
+  half: false

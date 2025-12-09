@@ -1,0 +1,100 @@
+# DVC Pipeline Configuration
+# ==========================
+# Data Version Control pipeline for YOLO training
+
+stages:
+  # Stage 1: Data Validation
+  validate_data:
+    cmd: python validate_data_splits.py --check
+    deps:
+      - validate_data_splits.py
+      - Data/train/images
+      - Data/val/images
+      - Data/test/images
+    outs:
+      - mlops/outputs/data_validation_report.json:
+          cache: false
+    params:
+      - params.yaml:
+          - data.train_path
+          - data.val_path
+          - data.test_path
+
+  # Stage 2: Data Preparation
+  prepare_data:
+    cmd: python resplit_data.py --ratio 60:20:20
+    deps:
+      - resplit_data.py
+      - validate_data_splits.py
+    params:
+      - params.yaml:
+          - data.split_ratio
+          - data.seed
+    outs:
+      - Data/train/images:
+          cache: true
+      - Data/val/images:
+          cache: true
+      - Data/test/images:
+          cache: true
+
+  # Stage 3: Train YOLO Model
+  train:
+    cmd: python -m mlops.pipeline train --epochs ${train.epochs} --batch ${train.batch} --imgsz ${train.imgsz} --lr0 ${train.lr0} --seed ${train.seed}
+    deps:
+      - data.yaml
+      - Data/train/images
+      - Data/val/images
+      - yolov8s.pt
+      - mlops/pipeline.py
+    params:
+      - params.yaml:
+          - train.epochs
+          - train.batch
+          - train.imgsz
+          - train.lr0
+          - train.seed
+          - train.optimizer
+    outs:
+      - mlops/outputs/yolo_training_*/train/weights/best.pt:
+          cache: true
+    metrics:
+      - mlops/outputs/yolo_training_*/pipeline_results.json:
+          cache: false
+    plots:
+      - mlops/outputs/yolo_training_*/train/results.csv:
+          x: epoch
+          y: metrics/mAP50
+          cache: false
+
+  # Stage 4: Evaluate Model
+  evaluate:
+    cmd: python -m mlops.pipeline evaluate --split test
+    deps:
+      - mlops/outputs/yolo_training_*/train/weights/best.pt
+      - Data/test/images
+      - Data/test/labels
+    metrics:
+      - mlops/outputs/evaluation_*/pipeline_results.json:
+          cache: false
+
+  # Stage 5: Explainability Analysis  
+  explain:
+    cmd: python -m mlops.pipeline explain --samples 20
+    deps:
+      - mlops/outputs/yolo_training_*/train/weights/best.pt
+      - Data/test/images
+      - Data/test/labels
+    outs:
+      - mlops/outputs/explainability_*:
+          cache: true
+
+  # Stage 6: Model Governance
+  register:
+    cmd: python -c "from mlops import model_registry; print('Model registered')"
+    deps:
+      - mlops/outputs/yolo_training_*/train/weights/best.pt
+      - mlops/outputs/evaluation_*/pipeline_results.json
+    outs:
+      - mlops/registry/models.json:
+          cache: false
